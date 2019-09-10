@@ -1,5 +1,13 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+ext {
+    camerax_version = '1.0.0-alpha04'
+    firebase_ml_vision_version = '23.0.0'
+    firebase_ml_vision_obj_detect_model = '19.0.1'
+    firebase_ml_vision_image_lbl_model = '18.0.0'
+    firebase_ml_vision_vision_face_model = '18.0.0'
+}
+
 buildscript {
     ext.kotlin_version = '1.3.50'
     repositories {
