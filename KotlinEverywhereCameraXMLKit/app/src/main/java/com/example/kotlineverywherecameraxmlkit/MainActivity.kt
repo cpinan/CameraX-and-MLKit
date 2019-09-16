@@ -21,6 +21,10 @@ import com.example.kotlineverywherecameraxmlkit.extensions.arePermissionsGranted
 import com.example.kotlineverywherecameraxmlkit.extensions.askForPermissions
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.FirebaseApp
+import com.google.firebase.ml.vision.FirebaseVision
+import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode
+import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetector
+import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetectorOptions
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import kotlinx.android.synthetic.main.activity_main.*
 
@@ -29,6 +33,7 @@ private const val REQUEST_CAMERA_CODE_PERMISSION = 7777
 class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
 
     private lateinit var lifecycleRegistry: LifecycleRegistry
+    private lateinit var detector: FirebaseVisionBarcodeDetector
 
     private val requiredPermissions = arrayOf(
         Manifest.permission.CAMERA
@@ -38,6 +43,14 @@ class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
         setContentView(R.layout.activity_main)
+
+        val options = FirebaseVisionBarcodeDetectorOptions.Builder()
+            .setBarcodeFormats(
+                FirebaseVisionBarcode.FORMAT_QR_CODE
+            )
+            .build()
+
+        detector = FirebaseVision.getInstance().getVisionBarcodeDetector(options)
 
         lifecycleRegistry = LifecycleRegistry(this)
 
@@ -142,6 +155,30 @@ class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
         cameraXTextureView.setTransform(matrix)
     }
 
+    private fun processQRCode(firebaseVisionImage: FirebaseVisionImage?) {
+        firebaseVisionImage?.let { image ->
+            detector.detectInImage(image)
+                .addOnSuccessListener { barcodes ->
+                    for (barcode in barcodes) {
+                        val bounds = barcode.boundingBox
+                        val rawValue = barcode.rawValue
+                        val builder = StringBuilder()
+                        builder.append(bounds.toString())
+                        builder.append("\n")
+                        builder.append(rawValue)
+                        infoTextView.text = builder.toString()
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Snackbar.make(
+                        findViewById(android.R.id.content),
+                        exception.localizedMessage,
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
+        }
+    }
+
     override fun onProcessed(bitmap: Bitmap?) {
     }
 
@@ -152,7 +189,7 @@ class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
                     setImageBitmap(firebaseVisionImage?.bitmap)
                 }
             }
-            // TODO Process qr code
+            processQRCode(firebaseVisionImage)
         }
     }
 }
