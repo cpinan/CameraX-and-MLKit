@@ -4,6 +4,8 @@ import android.graphics.*
 import android.media.Image
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import com.google.firebase.ml.vision.common.FirebaseVisionImage
+import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
 import java.io.ByteArrayOutputStream
 
 /**
@@ -26,7 +28,7 @@ class MLKitAnalyzer(
             if (image?.image != null) {
                 image?.let { imageProxy ->
                     imageProxy.apply {
-                        listener.onProcessed(getBitmap(getImage(), rotationDegrees))
+                        listener.onProcessed(getFirebaseVisionImage(getImage(), rotationDegrees))
                     }
                 }
             }
@@ -44,13 +46,13 @@ class MLKitAnalyzer(
             val uSize = uBuffer.remaining()
             val vSize = vBuffer.remaining()
 
-            val nv21 = ByteArray(ySize + uSize + vSize)
+            val data = ByteArray(ySize + uSize + vSize)
 
-            yBuffer.get(nv21, 0, ySize)
-            vBuffer.get(nv21, ySize, vSize)
-            uBuffer.get(nv21, ySize + vSize, uSize)
+            yBuffer.get(data, 0, ySize)
+            vBuffer.get(data, ySize, vSize)
+            uBuffer.get(data, ySize + vSize, uSize)
 
-            val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+            val yuvImage = YuvImage(data, ImageFormat.NV21, width, height, null)
             val out = ByteArrayOutputStream()
             yuvImage.compressToJpeg(Rect(0, 0, yuvImage.width, yuvImage.height), 50, out)
             val imageBytes = out.toByteArray()
@@ -61,8 +63,51 @@ class MLKitAnalyzer(
         return null
     }
 
+    private fun getFirebaseVisionImage(image: Image?, degrees: Int): FirebaseVisionImage? {
+        image?.apply {
+            val yBuffer = planes[0].buffer
+            val uBuffer = planes[1].buffer
+            val vBuffer = planes[2].buffer
+
+            val ySize = yBuffer.remaining()
+            val uSize = uBuffer.remaining()
+            val vSize = vBuffer.remaining()
+
+            val data = ByteArray(ySize + uSize + vSize)
+
+            yBuffer.get(data, 0, ySize)
+            vBuffer.get(data, ySize, vSize)
+            uBuffer.get(data, ySize + vSize, uSize)
+
+            val rotation = getRotation(degrees)
+            val metadata = FirebaseVisionImageMetadata.Builder()
+                .setFormat(FirebaseVisionImageMetadata.IMAGE_FORMAT_YV12)
+                .setHeight(height)
+                .setWidth(width)
+                .setRotation(rotation)
+                .build()
+
+            return FirebaseVisionImage.fromByteArray(data, metadata)
+        }
+        return null
+    }
+
+    private fun getRotation(degrees: Int): Int {
+        when (degrees) {
+            0 -> return FirebaseVisionImageMetadata.ROTATION_0
+            90 -> return FirebaseVisionImageMetadata.ROTATION_90
+            180 -> return FirebaseVisionImageMetadata.ROTATION_180
+            270 -> return FirebaseVisionImageMetadata.ROTATION_270
+        }
+        throw IllegalArgumentException(
+            "Rotation must be 0, 90, 180, or 270."
+        )
+    }
+
+
 }
 
 interface MLKitListener {
     fun onProcessed(bitmap: Bitmap?)
+    fun onProcessed(firebaseVisionImage: FirebaseVisionImage?)
 }

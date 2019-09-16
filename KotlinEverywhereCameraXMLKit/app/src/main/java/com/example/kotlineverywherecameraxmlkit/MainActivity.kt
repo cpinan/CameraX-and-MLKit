@@ -20,6 +20,8 @@ import com.example.kotlineverywherecameraxmlkit.analyzers.MLKitListener
 import com.example.kotlineverywherecameraxmlkit.extensions.arePermissionsGranted
 import com.example.kotlineverywherecameraxmlkit.extensions.askForPermissions
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.FirebaseApp
+import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import kotlinx.android.synthetic.main.activity_main.*
 
 private const val REQUEST_CAMERA_CODE_PERMISSION = 7777
@@ -34,6 +36,7 @@ class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FirebaseApp.initializeApp(this)
         setContentView(R.layout.activity_main)
 
         lifecycleRegistry = LifecycleRegistry(this)
@@ -140,10 +143,16 @@ class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
     }
 
     override fun onProcessed(bitmap: Bitmap?) {
-        bitmap?.let {
-            runOnUiThread {
-                previewImageView.setImageBitmap(bitmap)
+    }
+
+    override fun onProcessed(firebaseVisionImage: FirebaseVisionImage?) {
+        runOnUiThread {
+            previewImageView.post {
+                previewImageView.apply {
+                    setImageBitmap(firebaseVisionImage?.bitmap)
+                }
             }
+            // TODO Process qr code
         }
     }
 }
