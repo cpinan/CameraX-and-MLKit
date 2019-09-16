@@ -1,18 +1,22 @@
 package com.example.kotlineverywherecameraxmlkit
 
 import android.Manifest
+import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Rational
+import android.util.Size
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraX
-import androidx.camera.core.Preview
-import androidx.camera.core.PreviewConfig
+import androidx.camera.core.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
+import com.example.kotlineverywherecameraxmlkit.analyzers.MLKitAnalyzer
+import com.example.kotlineverywherecameraxmlkit.analyzers.MLKitListener
 import com.example.kotlineverywherecameraxmlkit.extensions.arePermissionsGranted
 import com.example.kotlineverywherecameraxmlkit.extensions.askForPermissions
 import com.google.android.material.snackbar.Snackbar
@@ -20,7 +24,7 @@ import kotlinx.android.synthetic.main.activity_main.*
 
 private const val REQUEST_CAMERA_CODE_PERMISSION = 7777
 
-class MainActivity : AppCompatActivity(), LifecycleOwner {
+class MainActivity : AppCompatActivity(), LifecycleOwner, MLKitListener {
 
     private lateinit var lifecycleRegistry: LifecycleRegistry
 
@@ -87,7 +91,7 @@ class MainActivity : AppCompatActivity(), LifecycleOwner {
     private fun startCamera() {
         val previewConfiguration = PreviewConfig.Builder().apply {
             setTargetAspectRatio(Rational(1, 1))
-            setTargetRotation(Surface.ROTATION_0)
+            setTargetResolution(Size(1024, 768))
         }.build()
         val preview = Preview(previewConfiguration)
 
@@ -101,9 +105,20 @@ class MainActivity : AppCompatActivity(), LifecycleOwner {
             updateTransformation()
         }
 
+        val analyzerConfig = ImageAnalysisConfig.Builder().apply {
+            val analyzerThread = HandlerThread("MLKitAnalyzer").apply { start() }
+            setCallbackHandler(Handler(analyzerThread.looper))
+            setImageReaderMode(
+                ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE
+            )
+        }.build()
+
+        val analyzerUseCase = ImageAnalysis(analyzerConfig).apply {
+            analyzer = MLKitAnalyzer(this@MainActivity)
+        }
 
         if (lifecycleRegistry.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            CameraX.bindToLifecycle(this, preview)
+            CameraX.bindToLifecycle(this, preview, analyzerUseCase)
         }
     }
 
@@ -122,5 +137,13 @@ class MainActivity : AppCompatActivity(), LifecycleOwner {
         }
         matrix.postRotate(-rotationDegrees.toFloat(), centerX, centerY)
         cameraXTextureView.setTransform(matrix)
+    }
+
+    override fun onProcessed(bitmap: Bitmap?) {
+        bitmap?.let {
+            runOnUiThread {
+                previewImageView.setImageBitmap(bitmap)
+            }
+        }
     }
 }
